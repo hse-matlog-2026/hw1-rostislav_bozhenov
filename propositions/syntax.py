@@ -104,11 +104,12 @@ class Formula:
 
     @memoized_parameterless_method
     def __repr__(self) -> str:
-        """Computes the string representation of the current formula.
-
-        Returns:
-            The standard string representation of the current formula.
-        """
+        if is_constant(self.root) or is_variable(self.root):
+            return self.root
+        elif is_binary(self.root):
+            return '(' + repr(self.first) + self.root + repr(self.second) + ')'
+        elif is_unary(self.root):
+            return self.root + repr(self.first)
         # Task 1.1
 
     def __eq__(self, other: object) -> bool:
@@ -140,65 +141,96 @@ class Formula:
 
     @memoized_parameterless_method
     def variables(self) -> Set[str]:
-        """Finds all variable names in the current formula.
-
-        Returns:
-            A set of all variable names used in the current formula.
-        """
+        ans = set()
+        if is_variable(self.root):
+            ans.add(self.root)
+        elif is_binary(self.root):
+            ans.update(self.first.variables())
+            ans.update(self.second.variables())
+        elif is_unary(self.root):
+            ans.update(self.first.variables())
+        return ans
+            
         # Task 1.2
 
     @memoized_parameterless_method
     def operators(self) -> Set[str]:
-        """Finds all operators in the current formula.
-
-        Returns:
-            A set of all operators (including ``'T'`` and ``'F'``) used in the
-            current formula.
-        """
+        ans = set()
+        if is_constant(self.root):
+            ans.add(self.root)
+        elif is_binary(self.root):
+            ans.add(self.root)
+            ans.update(self.first.operators())
+            ans.update(self.second.operators())
+        elif is_unary(self.root):
+            ans.add(self.root)
+            ans.update(self.first.operators())
+        return ans
         # Task 1.3
         
     @staticmethod
-    def _parse_prefix(string: str) -> Tuple[Union[Formula, None], str]:
-        """Parses a prefix of the given string into a formula.
+    def _parse_prefix(string: str) -> Tuple[Optional['Formula'], str]:
+        if len(string) == 0:
+            return None, 'Unexpected end of string'
 
-        Parameters:
-            string: string to parse.
+        c = string[0]
 
-        Returns:
-            A pair of the parsed formula and the unparsed suffix of the string.
-            If the given string has as a prefix a variable name (e.g.,
-            ``'x12'``) or a unary operator followed by a variable name, then the
-            parsed prefix will include that entire variable name (and not just a
-            part of it, such as ``'x1'``). If no prefix of the given string is a
-            valid standard string representation of a formula then returned pair
-            should be of ``None`` and an error message, where the error message
-            is a string with some human-readable content.
-        """
-        # Task 1.4
+        if c == 'T' or c == 'F':
+            return Formula(c), string[1:]
+
+        if 'p' <= c <= 'z':
+            i = 1
+            while i < len(string) and string[i].isdecimal():
+                i += 1
+            var = string[:i]
+            return Formula(var), string[i:]
+
+        if c == '~':
+            f, rest = Formula._parse_prefix(string[1:])
+            if f is None:
+                return None, rest
+            return Formula('~', f), rest
+
+        if c == '(':
+            f1, rest1 = Formula._parse_prefix(string[1:])
+            if f1 is None:
+                return None, rest1
+            if len(rest1) == 0:
+                return None, 'Unexpected end of string'
+
+            if rest1.startswith('->'):
+                op = '->'
+                rest_op = rest1[2:]
+            elif rest1[0] == '&' or rest1[0] == '|':
+                op = rest1[0]
+                rest_op = rest1[1:]
+            else:
+                return None, 'Unexpected symbol ' + rest1[0]
+
+            f2, rest2 = Formula._parse_prefix(rest_op)
+            if f2 is None:
+                return None, rest2
+            if len(rest2) == 0:
+                return None, 'Unexpected end of string'
+            if rest2[0] != ')':
+                return None, 'Unexpected symbol ' + rest2[0]
+
+            return Formula(op, f1, f2), rest2[1:]
+
+        return None, 'Unexpected symbol ' + c
 
     @staticmethod
     def is_formula(string: str) -> bool:
-        """Checks if the given string is a valid representation of a formula.
-
-        Parameters:
-            string: string to check.
-
-        Returns:
-            ``True`` if the given string is a valid standard string
-            representation of a formula, ``False`` otherwise.
-        """
+        ans = Formula._parse_prefix(string)
+        if ans[0] != None and ans[1] == '':
+            return True
+        return False
         # Task 1.5
         
     @staticmethod
     def parse(string: str) -> Formula:
-        """Parses the given valid string representation into a formula.
-
-        Parameters:
-            string: string to parse.
-
-        Returns:
-            A formula whose standard string representation is the given string.
-        """
+        ans = Formula._parse_prefix(string)
+        return ans[0]
         assert Formula.is_formula(string)
         # Task 1.6
 

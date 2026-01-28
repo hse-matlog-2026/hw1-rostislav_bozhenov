@@ -218,6 +218,43 @@ class Formula:
             return Formula(op, f1, f2), rest2[1:]
 
         return None, 'Unexpected symbol ' + c
+    @staticmethod
+    def _polish_prefix(string: str) -> Tuple[Optional['Formula'], str]:
+        if len(string) == 0:
+            return None, 'Unexpected end of string'
+
+        c = string[0]
+
+        if c == 'T' or c == 'F':
+            return Formula(c), string[1:]
+
+        if 'p' <= c <= 'z':
+            i = 1
+            while i < len(string) and string[i].isdecimal():
+                i += 1
+            var = string[:i]
+            return Formula(var), string[i:]
+
+        if c == '~':
+            f, rest = Formula._polish_prefix(string[1:])
+            if f is None:
+                return None, rest
+            return Formula('~', f), rest
+
+        if is_binary(c):
+            f1, rest1 = Formula._polish_prefix(string[1:])
+            if f1 is None:
+                return None, rest1
+            if len(rest1) == 0:
+                return None, 'Unexpected end of string'
+
+            f2, rest2 = Formula._parse_prefix(rest1)
+            if f2 is None:
+                return None, rest2
+
+            return Formula(c, f1, f2), rest2
+
+        return None, 'Unexpected symbol ' + c
 
     @staticmethod
     def is_formula(string: str) -> bool:
@@ -235,15 +272,18 @@ class Formula:
         # Task 1.6
 
     def polish(self) -> str:
-        """Computes the polish notation representation of the current formula.
-
-        Returns:
-            The polish notation representation of the current formula.
-        """
+        if is_variable(self.root) or is_constant(self.root):
+            return self.root
+        elif is_binary(self.root):
+            return self.root + self.first.polish() + self.second.polish()
+        elif is_unary(self.root):
+            return self.root + self.first.polish()
         # Optional Task 1.7
 
     @staticmethod
     def parse_polish(string: str) -> Formula:
+        ans = Formula._polish_prefix(string)
+        return ans[0]
         """Parses the given polish notation representation into a formula.
 
         Parameters:
